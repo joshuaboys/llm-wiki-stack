@@ -37,6 +37,8 @@ They don't overlap. Together they give the assistant persistent, queryable memor
 
 ## Architecture
 
+![LLM Wiki Stack Architecture](docs/architecture.png)
+
 ```
 ~/Vault/                          ← Obsidian vault (synced via obsidian-headless)
   MORGAN-WIKI-SCHEMA.md           ← Governs how the LLM maintains the wiki

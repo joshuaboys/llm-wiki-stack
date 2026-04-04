@@ -41,7 +41,7 @@ They don't overlap. Together they give the assistant persistent, queryable memor
 
 ```
 ~/Vault/                          ← Obsidian vault (synced via obsidian-headless)
-  MORGAN-WIKI-SCHEMA.md           ← Governs how the LLM maintains the wiki
+  WIKI-SCHEMA.md                 ← Governs how the LLM maintains the wiki
   wiki/
     index.md                      ← Master catalog (updated on every ingest)
     log.md                        ← Append-only chronological record
@@ -138,7 +138,7 @@ brv status
 
 ### 6. Configure your assistant
 
-Copy `schema/WIKI-SCHEMA.md` into your vault as `MORGAN-WIKI-SCHEMA.md` (or whatever you name your assistant) and adapt it to your domains and projects. This is the most important step — it's what makes the LLM a disciplined wiki maintainer rather than a generic chatbot.
+Copy `schema/WIKI-SCHEMA.md` into your vault and adapt it to your domains and projects. You can rename it to match your assistant's name if you like. This is the most important step — it's what makes the LLM a disciplined wiki maintainer rather than a generic chatbot.
 
 Tell your assistant to read the schema at the start of every research session.
 

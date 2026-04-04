@@ -1,0 +1,18 @@
+[Unit]
+Description=Obsidian Headless Sync
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Update these paths to match your system:
+# - NODE_BIN: output of `which node`
+# - OB_CLI: path to obsidian-headless cli.js (find with: npm root -g)/obsidian-headless/cli.js
+# - VAULT_PATH: path to your vault directory
+ExecStart=/home/linuxbrew/.linuxbrew/opt/node/bin/node /home/linuxbrew/.linuxbrew/lib/node_modules/obsidian-headless/cli.js sync --path /home/YOUR_USER/Vault --continuous
+Restart=on-failure
+RestartSec=30
+Environment=HOME=/home/YOUR_USER
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=Obsidian Headless Sync — Mind Vault
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Update paths as above. This service syncs the obsidian-mind vault separately.
+ExecStart=/home/linuxbrew/.linuxbrew/opt/node/bin/node /home/linuxbrew/.linuxbrew/lib/node_modules/obsidian-headless/cli.js sync --path /home/YOUR_USER/Vault-mind --continuous
+Restart=on-failure
+RestartSec=30
+Environment=HOME=/home/YOUR_USER
+
+[Install]
+WantedBy=default.target

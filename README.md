@@ -4,6 +4,26 @@ A production implementation of [Karpathy's LLM Wiki pattern](https://gist.github
 
 ---
 
+## Quick Install (headless Linux)
+
+```bash
+# Full install — everything from scratch
+curl -fsSL https://raw.githubusercontent.com/joshuaboys/llm-wiki-stack/main/scripts/install.sh | bash
+
+# Already have a vault? Just add headless sync
+curl -fsSL https://raw.githubusercontent.com/joshuaboys/llm-wiki-stack/main/scripts/install-sync.sh | bash
+
+# Just want ByteRover structured knowledge
+curl -fsSL https://raw.githubusercontent.com/joshuaboys/llm-wiki-stack/main/scripts/install-byterover.sh | bash
+```
+
+Customise paths before running:
+```bash
+VAULT_PATH=~/MyVault DEVICE_NAME=myserver curl -fsSL ... | bash
+```
+
+---
+
 ## What This Is
 
 Most LLM + knowledge setups are RAG: you upload files, the LLM retrieves chunks at query time, generates an answer, and forgets everything. Nothing compounds.

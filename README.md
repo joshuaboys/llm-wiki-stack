@@ -8,18 +8,21 @@ A production implementation of [Karpathy's LLM Wiki pattern](https://gist.github
 
 ```bash
 # Full install — everything from scratch
-curl -fsSL https://raw.githubusercontent.com/joshuaboys/llm-wiki-stack/main/scripts/install.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/joshuaboys/llm-wiki-stack/main/scripts/install.sh)
 
 # Already have a vault? Just add headless sync
-curl -fsSL https://raw.githubusercontent.com/joshuaboys/llm-wiki-stack/main/scripts/install-sync.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/joshuaboys/llm-wiki-stack/main/scripts/install-sync.sh)
 
 # Just want ByteRover structured knowledge
-curl -fsSL https://raw.githubusercontent.com/joshuaboys/llm-wiki-stack/main/scripts/install-byterover.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/joshuaboys/llm-wiki-stack/main/scripts/install-byterover.sh)
 ```
 
-Customise paths before running:
+> **Note:** `bash <(curl ...)` preserves your TTY for interactive prompts. The scripts also support fully non-interactive mode via env vars — useful for CI or provisioning scripts.
+
+Non-interactive example:
 ```bash
-VAULT_PATH=~/MyVault DEVICE_NAME=myserver curl -fsSL ... | bash
+VAULT_PATH=~/Vault VAULT_NAME="My Vault" BRV_PROVIDER=openai BRV_API_KEY=sk-... \
+  bash <(curl -fsSL .../install.sh)
 ```
 
 ---
@@ -216,6 +219,38 @@ Checks for orphans, contradictions, stale content, and missing cross-references.
 - [ByteRover](https://github.com/campfirein/byterover-cli) — agent-native memory architecture ([paper](https://arxiv.org/abs/2604.01599))
 - [obsidian-headless](https://github.com/obsidianmd/obsidian-headless) — headless sync daemon
 - [OpenClaw](https://openclaw.ai) — the always-on assistant layer
+
+---
+
+## Troubleshooting
+
+### Sync daemon not running
+```bash
+systemctl --user status obsidian-sync.service
+journalctl --user -u obsidian-sync -f
+```
+
+### Service stops when I log out (headless server)
+Enable linger so user services survive logout:
+```bash
+loginctl enable-linger $USER
+```
+
+### Wrong node binary path in service
+Check what path the service is using:
+```bash
+cat ~/.config/systemd/user/obsidian-sync.service | grep ExecStart
+```
+Update to the correct path, then `systemctl --user daemon-reload && systemctl --user restart obsidian-sync`.
+
+### ob login expired
+```bash
+ob login
+systemctl --user restart obsidian-sync.service
+```
+
+### ByteRover not finding context
+ByteRover stores context per-directory. Always run `brv` commands from `~/brv-context` (or wherever you initialised it).
 
 ---
 

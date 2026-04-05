@@ -36,15 +36,16 @@ read -rp "$(echo -e "${YELLOW}?${NC} Choose [1/2/3]: ")" CHOICE
 
 case "$CHOICE" in
   1)
-    read -rp "$(echo -e "${YELLOW}?${NC} OpenAI API key: ")" -s KEY; echo
-    brv providers connect openai --api-key "$KEY"
+    read -rsp "$(echo -e "${YELLOW}?${NC} OpenAI API key: ")" KEY; echo
+    # Pass via env var to avoid key appearing in process list (ps aux)
+    OPENAI_API_KEY="$KEY" brv providers connect openai
     ;;
   2)
-    read -rp "$(echo -e "${YELLOW}?${NC} Anthropic API key: ")" -s KEY; echo
-    brv providers connect anthropic --api-key "$KEY"
+    read -rsp "$(echo -e "${YELLOW}?${NC} Anthropic API key: ")" KEY; echo
+    ANTHROPIC_API_KEY="$KEY" brv providers connect anthropic
     ;;
   *)
-    warn "Skipping. Run later: brv providers connect openai --api-key YOUR_KEY"
+    warn "Skipping. Run later: brv providers connect openai"
     ;;
 esac
 

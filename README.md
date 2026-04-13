@@ -1,6 +1,190 @@
 # LLM Wiki Stack
 
-A production implementation of [Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) — a compounding personal knowledge base maintained by an AI assistant running continuously on a headless Linux server.
+Your AI agent is smart but it doesn't know anything about your life. This fixes that.
+
+Every conversation, meeting, article, and signal flows into a personal knowledge base. Your agent reads it before every response and writes to it after every conversation. The wiki gets richer every day. You never start from zero.
+
+This is [Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) made operational — extended with [gbrain's](https://github.com/garrytan/gbrain) entity-first architecture and production lessons from [LLM Wiki v2](https://gist.github.com/rohitg00/2067ab416f7bbe447c1977edaaa681e2).
+
+---
+
+## The Vision
+
+Most LLM setups are RAG: the model retrieves from scratch, answers, and forgets. Nothing compounds.
+
+This is different. Your agent **builds and maintains a wiki** — structured, interlinked markdown files it reads before every response and updates after every conversation. Add a source and the agent integrates it into 5–15 existing pages, updating entity pages, noting contradictions, strengthening cross-references. Ask a question and the agent files the synthesis back. Over months, the wiki becomes a second brain that knows your world — your people, your projects, your thinking.
+
+**The key insight from Karpathy:** stop re-deriving. Start compiling. Pre-computed synthesis beats retrieval every time.
+
+**What this repo adds:** an entity layer, schema conventions that make pages smarter over time, and a headless sync daemon so it runs continuously on a server without a GUI.
+
+---
+
+## The Stack
+
+| Layer | Tool | Why |
+|---|---|---|
+| **Agent** | [OpenClaw](https://openclaw.ai) | Always-on daemon, reads/writes wiki continuously |
+| **Wiki IDE** | [Obsidian](https://obsidian.md) | Graph view, backlinks, browse on any device |
+| **Headless sync** | [obsidian-headless](https://github.com/obsidianmd/obsidian-headless) | Keeps vault synced on a server without a GUI |
+| **Schema** | This repo | What makes the wiki compound instead of just grow |
+
+No database. No embeddings required to start. Just markdown files, a schema, and an agent that follows it.
+
+---
+
+## Architecture
+
+```
+~/Vault/
+  WIKI-SCHEMA.md              ← The rules. Agent reads this first.
+  brain/                      ← Entity layer (one page per person, company, project)
+    RESOLVER.md               ← Filing decision tree
+    people/
+    companies/
+    projects/
+    ideas/
+    concepts/
+    meetings/
+    inbox/
+    archive/
+  wiki/
+    index.md                  ← Master catalog, updated on every ingest
+    log.md                    ← Append-only record of all activity
+    entities/                 ← Named entities from research and synthesis
+    topics/                   ← Cross-domain synthesis pages
+    sources/                  ← One summary per ingested source
+  originals/                  ← Your thinking, not what you found
+  references/                 ← Raw source documents (immutable)
+  inbox/                      ← Unprocessed captures
+
+~/.config/systemd/user/
+  obsidian-sync.service       ← Continuous sync daemon
+```
+
+---
+
+## How It Works
+
+Every conversation passes through this loop:
+
+```
+Signal arrives (message, source, meeting, question)
+  ↓
+Entity detection — who and what is this about?
+  ↓
+Brain-first lookup — check brain/ before answering
+  ↓
+Respond with full context
+  ↓
+Update brain pages with new information
+  ↓
+Sync — changes propagate to all devices
+```
+
+Each pass through the loop adds knowledge. After a meeting, the agent enriches the attendees' brain pages. Next time those people come up, the agent already has context. The difference compounds daily.
+
+---
+
+## Two Layers, One Vault
+
+### The brain layer (`brain/`)
+
+One page per entity — every person, company, and project that matters to you. The agent checks here before answering anything about a known entity.
+
+Every brain page has two layers, separated by `---`:
+
+```markdown
+# [Name]
+
+> One-line who this is and why they matter.
+
+## State
+Current facts. Always rewritten when new information arrives.
+
+## Open Threads
+Active items. Removed when resolved (moved to Timeline below).
+
+---
+
+## Timeline
+- YYYY-MM-DD | Source — what happened (append-only, never edited)
+```
+
+**Above the line:** always current. If you read only this, you know the state of play.  
+**Below the line:** the evidence log. Append-only. When an open thread resolves, it moves here with its resolution.
+
+The synthesis is pre-computed. Unlike RAG, your agent doesn't re-derive context from scratch — the cross-references are already there.
+
+### The RESOLVER
+
+Before creating any brain page, the agent reads `brain/RESOLVER.md` — a decision tree that answers exactly one question: *where does this piece of knowledge belong?*
+
+```
+Person?                    → people/
+Company or product?        → companies/
+Actively being built?      → projects/
+Just an idea?              → ideas/
+Mental model or framework? → concepts/
+A meeting?                 → meetings/
+Doesn't fit?               → inbox/
+```
+
+One page per entity. One home per entity. No duplicates. The resolver prevents the failure mode that kills most knowledge bases: the same fact living in three places with three different versions.
+
+### The wiki layer (`wiki/`)
+
+For research, synthesis, and competitive intelligence — knowledge that spans entities and compounds from sources you ingest. Follows the Karpathy pattern strictly: index, log, entity pages, topic pages, source summaries.
+
+---
+
+## Schema Conventions
+
+These conventions are baked into `WIKI-SCHEMA.md`. They make pages smarter over time.
+
+### Confidence
+
+Every significant claim carries context:
+
+```markdown
+- Uses Redis for caching (source: [[Redis Migration 2025-03]], last confirmed: 2025-11)
+```
+
+When you update a claim, note the date. Old unconfirmed claims decay — they don't disappear, but you know to treat them with appropriate skepticism.
+
+### Supersession
+
+When a claim changes, preserve the old version:
+
+```markdown
+- Auth uses JWT tokens (supersedes: [[Auth Decision 2024-03]] which used sessions)
+```
+
+The old page is preserved but marked stale. You get a full history of what you believed and when you changed your mind.
+
+### Typed relationships
+
+Not all connections are equal:
+
+```markdown
+## Relationships
+- [[Redis]] — uses (caching layer)
+- [[Postgres Migration 2025]] — caused (capacity issues triggered it)
+- [[Legacy Session Auth]] — supersedes
+```
+
+Relationship types: `uses`, `depends-on`, `caused`, `fixed`, `supersedes`, `contradicts`, `inspired-by`.
+
+### Originals
+
+A place for your own thinking — separate from ingested sources:
+
+```
+originals/
+  [date]-[slug].md
+```
+
+Format: what you think, why, what would change your mind. The goal is to capture the thinking that doesn't come from anywhere else. This is the layer most knowledge bases miss.
 
 ---
 
@@ -12,263 +196,37 @@ bash <(curl -fsSL https://raw.githubusercontent.com/joshuaboys/llm-wiki-stack/ma
 
 # Already have a vault? Just add headless sync
 bash <(curl -fsSL https://raw.githubusercontent.com/joshuaboys/llm-wiki-stack/main/scripts/install-sync.sh)
-
-# Just want ByteRover structured knowledge
-bash <(curl -fsSL https://raw.githubusercontent.com/joshuaboys/llm-wiki-stack/main/scripts/install-byterover.sh)
 ```
 
-> **Note:** `bash <(curl ...)` preserves your TTY for interactive prompts. Scripts also support fully non-interactive mode via env vars.
-
-```bash
-VAULT_PATH=~/Vault VAULT_NAME="My Vault" BRV_PROVIDER=openai BRV_API_KEY=sk-... \
-  bash <(curl -fsSL .../install.sh)
-```
+**Prerequisites:** Ubuntu/Debian, Node.js ≥ 20, Obsidian Sync subscription, OpenClaw running.
 
 ---
 
-## What This Is
+## Configuration
 
-Most LLM + knowledge setups are RAG: you upload files, the LLM retrieves chunks at query time, generates an answer, and forgets everything. Nothing compounds.
+Copy `schema/WIKI-SCHEMA.md` into your vault as `WIKI-SCHEMA.md`. Tell your agent:
 
-This stack is different. The LLM **builds and maintains a persistent wiki** — structured, interlinked markdown files that sit between you and your raw sources. When you add a source, the LLM reads it, extracts what matters, and integrates it into existing pages — updating entity pages, noting contradictions, strengthening cross-references. The wiki gets richer with every ingest. Good answers get filed back. Knowledge compounds.
+> "Read WIKI-SCHEMA.md before any wiki work. Brain-first lookup on every entity. Update pages immediately when you learn something new."
 
----
-
-## The Stack
-
-| Layer | Tool | Purpose |
-|---|---|---|
-| **Assistant** | [OpenClaw](https://openclaw.ai) | Always-on AI assistant running as a daemon |
-| **Wiki IDE** | [Obsidian](https://obsidian.md) | Browse, follow links, graph view |
-| **Sync** | [obsidian-headless](https://github.com/obsidianmd/obsidian-headless) | Continuous sync daemon (no GUI required) |
-| **Personal memory** | [obsidian-mind](https://github.com/breferrari/obsidian-mind) *or* LLM Wiki v2 pattern | Session context, decisions, people (see below) |
-| **Entity layer** | Brain pattern (this repo) | Structured entity knowledge — people, companies, projects |
-| **Domain knowledge** | [ByteRover](https://github.com/campfirein/byterover-cli) | Structured hierarchical knowledge (context tree) |
-| **Wiki layer** | This repo's schema | Compounding cross-domain synthesis |
+That's it. Your agent will build the rest.
 
 ---
 
-## Memory Layers — Pick Your Approach
+## Going Further: Automated Enrichment
 
-### Option A: obsidian-mind
+The setup above requires you to prompt the agent to ingest sources. The next level is automatic enrichment — every email, calendar event, meeting, and social signal automatically touches the relevant brain pages without you having to ask.
 
-[obsidian-mind](https://github.com/breferrari/obsidian-mind) is a structured personal memory vault built for Claude Code. It handles 1:1s, decisions, brag doc, people notes, and performance tracking via slash commands and hooks.
+[gbrain](https://github.com/garrytan/gbrain) implements the full production version of this: integrations for email, calendar, voice calls, and Twitter; a nightly dream cycle that sweeps entities, fixes citations, and consolidates memory; 20+ cron jobs running continuously.
 
-Best for: teams, engineering managers, people who need structured work history and review prep.
+If you want to build the enrichment pipeline yourself, [PocketFlow](https://github.com/The-Pocket/PocketFlow) provides the primitives — 100 lines, zero dependencies. The cookbook patterns map directly to enrichment tasks:
 
-### Option B: LLM Wiki v2 pattern
-
-[LLM Wiki v2](https://gist.github.com/rohitg00/2067ab416f7bbe447c1977edaaa681e2) extends Karpathy's original pattern with lessons from running it in production:
-
-- **Confidence scoring** — every fact carries a score (source count, recency, contradictions). Decays with time, strengthens with reinforcement.
-- **Supersession** — when a claim is updated, the old version is preserved but marked stale, linked to the new one.
-- **Forgetting curves** — architecture decisions decay slowly, transient facts decay fast. The wiki stays signal-rich.
-- **Consolidation tiers** — working memory → episodic → semantic → procedural. Facts are promoted as evidence accumulates.
-- **Typed relationships** — "A caused B" is more useful than "A relates to B". Cross-links carry semantic weight.
-
-Best for: personal use, founders, researchers — anyone building a long-lived knowledge base that needs to stay relevant.
-
-Both options work alongside the wiki layer and entity layer. They're not mutually exclusive.
-
----
-
-## The Brain Pattern (Entity Layer)
-
-The brain pattern gives your assistant a structured entity knowledge base — one page per person, company, or project that matters to you.
-
-```
-brain/
-  RESOLVER.md        — Filing decision tree (where does this knowledge belong?)
-  people/            — One page per person
-  companies/         — Companies, products, institutions
-  projects/          — Active projects with a repo or spec
-  ideas/             — Raw possibilities not yet being built
-  concepts/          — Mental models and frameworks
-  meetings/          — Processed meeting notes
-  inbox/             — Quick captures awaiting filing
-  archive/           — Completed or shelved items
-```
-
-### How it works
-
-Before answering anything about a person or project, the assistant checks the brain first — no search needed, just direct navigation. Pages use a two-layer format:
-
-```markdown
-# [Name]
-
-> One-line who this is and why they matter.
-
-## State
-Current facts — always rewritten when things change.
-
----
-
-## Timeline
-- YYYY-MM-DD: Event (append-only — never edit, only add)
-```
-
-**Above the line:** always current — rewrite freely.  
-**Below the line:** append-only — preserves the full history.
-
-### RESOLVER.md
-
-The resolver is a decision tree that answers: *where does this piece of knowledge belong?*
-
-```
-Is it about a specific person?          → people/
-Is it about a company or product?       → companies/
-Is it actively being built?             → projects/
-Is it an idea with no active work?      → ideas/
-Is it a mental model or framework?      → concepts/
-Is it a meeting record?                 → meetings/
-Doesn't fit?                            → inbox/
-```
-
-One page per entity. One home per entity. No duplicates.
-
-The resolver is what makes the brain *navigable by the agent* — because the schema is known, the assistant goes straight to `brain/people/garry-tan.md` rather than searching everything.
-
----
-
-## Architecture
-
-```
-~/Vault/
-  WIKI-SCHEMA.md                 ← Governs how the LLM maintains the wiki
-  brain/                         ← Entity knowledge base (brain pattern)
-    RESOLVER.md
-    people/
-    companies/
-    projects/
-    ideas/
-    concepts/
-    meetings/
-    inbox/
-    archive/
-  wiki/
-    index.md                      ← Master catalog (updated on every ingest)
-    log.md                        ← Append-only chronological record
-    entities/                     ← One page per named entity
-    topics/                       ← Cross-domain synthesis pages
-    sources/                      ← One summary page per ingested source
-  projects/                       ← Project-specific wikis
-  references/                     ← Raw sources (immutable)
-  inbox/                          ← Unprocessed items
-
-~/.config/systemd/user/
-  obsidian-sync.service           ← Continuous vault sync daemon
-```
-
----
-
-## Setup
-
-### Prerequisites
-
-- Ubuntu/Debian Linux (headless or desktop)
-- Node.js >= 20
-- An Obsidian account with Sync subscription
-- OpenClaw installed and running
-
-### 1. Install obsidian-headless
-
-```bash
-npm install -g obsidian-headless
-ob login
-```
-
-### 2. Create and configure your vault
-
-```bash
-# Clone the vault template
-git clone https://github.com/joshuaboys/llm-wiki-stack.git
-cp -r llm-wiki-stack/vault-template ~/Vault
-
-# Connect to existing Obsidian Sync vault (or create new)
-ob sync-setup --vault "Vault" --path ~/Vault --device-name "$(hostname)"
-
-# Initial sync
-ob sync --path ~/Vault
-```
-
-### 3. Install the sync daemon
-
-```bash
-cp llm-wiki-stack/systemd/obsidian-sync.service ~/.config/systemd/user/
-
-# Edit ExecStart paths to match your node binary and vault path
-nano ~/.config/systemd/user/obsidian-sync.service
-
-systemctl --user daemon-reload
-systemctl --user enable --now obsidian-sync.service
-systemctl --user is-active obsidian-sync.service
-```
-
-### 4. Choose your personal memory layer
-
-**Option A — obsidian-mind:**
-```bash
-git clone https://github.com/breferrari/obsidian-mind.git ~/Vault-mind
-ob sync-setup --vault "Mind" --path ~/Vault-mind --device-name "$(hostname)"
-
-cp llm-wiki-stack/systemd/obsidian-sync-mind.service ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now obsidian-sync-mind.service
-```
-
-**Option B — LLM Wiki v2 pattern:**
-Add a `brain/` directory to your vault using the brain pattern template in this repo:
-```bash
-cp -r llm-wiki-stack/vault-template/brain ~/Vault/brain
-```
-Then ask your assistant to seed it: *"Read my USER.md and create brain pages for the people and projects I mentioned."*
-
-### 5. Install ByteRover (optional)
-
-```bash
-npm install -g byterover-cli
-brv providers connect openai --api-key YOUR_KEY
-```
-
-### 6. Configure your assistant
-
-Copy `schema/WIKI-SCHEMA.md` into your vault and adapt it to your domains. This is the most important step — it's what makes the assistant a disciplined wiki maintainer.
-
----
-
-## Usage
-
-### Ingest a source
-
-```
-"Ingest this article: [URL or paste content]"
-```
-
-The LLM reads the source → writes a summary page → updates entity pages → updates the index → appends to the log. A single source typically touches 5–15 pages.
-
-### Query the wiki
-
-```
-"What do we know about [topic]?"
-```
-
-The LLM reads the index → reads relevant pages → synthesises an answer → files good synthesis back as a `topics/` page.
-
-### Lint
-
-```
-"Run a wiki lint"
-```
-
-Checks for orphan pages, contradictions, stale claims, missing cross-references.
-
----
-
-## Going Further
-
-- [LLM Wiki v2](https://gist.github.com/rohitg00/2067ab416f7bbe447c1977edaaa681e2) — confidence scoring, supersession, forgetting curves, typed relationships, hybrid search
-- [ByteRover paper](https://arxiv.org/abs/2604.01599) — hierarchical context trees with adaptive knowledge lifecycle
-- [obsidian-mind](https://github.com/breferrari/obsidian-mind) — session context and performance tracking for Claude Code
+| What you want | PocketFlow pattern |
+|---|---|
+| Session memory (sliding window + retrieval) | [Chat Memory](https://github.com/The-Pocket/PocketFlow/tree/main/cookbook/pocketflow-chat-memory) |
+| Deep research with iterative refinement | [Deep Research](https://github.com/The-Pocket/PocketFlow/tree/main/cookbook/pocketflow-deep-research) |
+| Always-on monitoring with nested flows | [Heartbeat](https://github.com/The-Pocket/PocketFlow/tree/main/cookbook/pocketflow-heartbeat) |
+| Batch entity enrichment with speedup | [Parallel](https://github.com/The-Pocket/PocketFlow/tree/main/cookbook/pocketflow-parallel-batch) |
+| Reliability via supervision | [Supervisor](https://github.com/The-Pocket/PocketFlow/tree/main/cookbook/pocketflow-supervisor) |
 
 ---
 
@@ -276,8 +234,9 @@ Checks for orphan pages, contradictions, stale claims, missing cross-references.
 
 Built on the shoulders of:
 
-- **[Andrej Karpathy](https://github.com/karpathy)** — the original [LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f). Stop re-deriving, start compiling.
-- **[Garry Tan](https://github.com/garrytan)** — [gbrain](https://github.com/garrytan/gbrain), the entity-first approach to agent memory that inspired the brain pattern and RESOLVER concept in this repo.
+- **[Andrej Karpathy](https://github.com/karpathy)** — the original [LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f). The core insight: stop re-deriving, start compiling.
+- **[Garry Tan](https://github.com/garrytan)** — [gbrain](https://github.com/garrytan/gbrain). The entity-first architecture, MECE directories, RESOLVER pattern, compiled truth + timeline, and the operational brain concept that extends Karpathy's research wiki into a full personal intelligence system.
+- **LLM Wiki v2** ([rohitg00](https://gist.github.com/rohitg00/2067ab416f7bbe447c1977edaaa681e2)) — production lessons: confidence scoring, supersession, forgetting curves, and typed relationships.
 
 ---
 

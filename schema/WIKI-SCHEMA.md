@@ -198,3 +198,20 @@ Append results to `wiki/log.md`.
 ---
 
 *Adapt this schema to your domains. The more specific the update triggers, the better the compounding.*
+
+---
+
+## Contradiction Resolution
+
+When contradictions can't be resolved by simple judgment, use the `wiki-debate` skill:
+
+1. Extract both claims with their sources and dates
+2. Advocate for each position (evidence quality, recency, source authority)
+3. Score and verdict
+4. Write winner back to State, loser to Timeline as superseded entry
+5. Remove resolved item from Contradictions section
+6. Append to log.md
+
+Install: copy `skills/wiki-debate/SKILL.md` into your agent's skills directory.
+
+The goal: contradictions are resolved, not accumulated. A Contradictions section with 10 items is a wiki that stopped working.

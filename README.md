@@ -17,9 +17,8 @@ bash <(curl -fsSL https://raw.githubusercontent.com/joshuaboys/llm-wiki-stack/ma
 bash <(curl -fsSL https://raw.githubusercontent.com/joshuaboys/llm-wiki-stack/main/scripts/install-byterover.sh)
 ```
 
-> **Note:** `bash <(curl ...)` preserves your TTY for interactive prompts. The scripts also support fully non-interactive mode via env vars — useful for CI or provisioning scripts.
+> **Note:** `bash <(curl ...)` preserves your TTY for interactive prompts. Scripts also support fully non-interactive mode via env vars.
 
-Non-interactive example:
 ```bash
 VAULT_PATH=~/Vault VAULT_NAME="My Vault" BRV_PROVIDER=openai BRV_API_KEY=sk-... \
   bash <(curl -fsSL .../install.sh)
@@ -42,29 +41,110 @@ This stack is different. The LLM **builds and maintains a persistent wiki** — 
 | **Assistant** | [OpenClaw](https://openclaw.ai) | Always-on AI assistant running as a daemon |
 | **Wiki IDE** | [Obsidian](https://obsidian.md) | Browse, follow links, graph view |
 | **Sync** | [obsidian-headless](https://github.com/obsidianmd/obsidian-headless) | Continuous sync daemon (no GUI required) |
-| **Personal memory** | [obsidian-mind](https://github.com/breferrari/obsidian-mind) | 1:1s, decisions, brag doc, people |
+| **Personal memory** | [obsidian-mind](https://github.com/breferrari/obsidian-mind) *or* LLM Wiki v2 pattern | Session context, decisions, people (see below) |
+| **Entity layer** | Brain pattern (this repo) | Structured entity knowledge — people, companies, projects |
 | **Domain knowledge** | [ByteRover](https://github.com/campfirein/byterover-cli) | Structured hierarchical knowledge (context tree) |
 | **Wiki layer** | This repo's schema | Compounding cross-domain synthesis |
 
-### Why three memory layers?
+---
 
-Each layer does something different:
+## Memory Layers — Pick Your Approach
 
-- **ByteRover** — structured project/domain knowledge. Hierarchical context tree with importance scoring and recency decay. What the LLM *knows* about your projects.
-- **obsidian-mind** — personal work memory. 1:1s, decisions, brag doc, people notes. What happened *to you* at work.
-- **Wiki layer (Karpathy pattern)** — cross-domain synthesis. Competitor analysis, market signals, research. Knowledge that *compounds* from sources you ingest.
+### Option A: obsidian-mind
 
-They don't overlap. Together they give the assistant persistent, queryable memory that survives session restarts and compounds over time.
+[obsidian-mind](https://github.com/breferrari/obsidian-mind) is a structured personal memory vault built for Claude Code. It handles 1:1s, decisions, brag doc, people notes, and performance tracking via slash commands and hooks.
+
+Best for: teams, engineering managers, people who need structured work history and review prep.
+
+### Option B: LLM Wiki v2 pattern
+
+[LLM Wiki v2](https://gist.github.com/rohitg00/2067ab416f7bbe447c1977edaaa681e2) extends Karpathy's original pattern with lessons from running it in production:
+
+- **Confidence scoring** — every fact carries a score (source count, recency, contradictions). Decays with time, strengthens with reinforcement.
+- **Supersession** — when a claim is updated, the old version is preserved but marked stale, linked to the new one.
+- **Forgetting curves** — architecture decisions decay slowly, transient facts decay fast. The wiki stays signal-rich.
+- **Consolidation tiers** — working memory → episodic → semantic → procedural. Facts are promoted as evidence accumulates.
+- **Typed relationships** — "A caused B" is more useful than "A relates to B". Cross-links carry semantic weight.
+
+Best for: personal use, founders, researchers — anyone building a long-lived knowledge base that needs to stay relevant.
+
+Both options work alongside the wiki layer and entity layer. They're not mutually exclusive.
+
+---
+
+## The Brain Pattern (Entity Layer)
+
+The brain pattern gives your assistant a structured entity knowledge base — one page per person, company, or project that matters to you.
+
+```
+brain/
+  RESOLVER.md        — Filing decision tree (where does this knowledge belong?)
+  people/            — One page per person
+  companies/         — Companies, products, institutions
+  projects/          — Active projects with a repo or spec
+  ideas/             — Raw possibilities not yet being built
+  concepts/          — Mental models and frameworks
+  meetings/          — Processed meeting notes
+  inbox/             — Quick captures awaiting filing
+  archive/           — Completed or shelved items
+```
+
+### How it works
+
+Before answering anything about a person or project, the assistant checks the brain first — no search needed, just direct navigation. Pages use a two-layer format:
+
+```markdown
+# [Name]
+
+> One-line who this is and why they matter.
+
+## State
+Current facts — always rewritten when things change.
+
+---
+
+## Timeline
+- YYYY-MM-DD: Event (append-only — never edit, only add)
+```
+
+**Above the line:** always current — rewrite freely.  
+**Below the line:** append-only — preserves the full history.
+
+### RESOLVER.md
+
+The resolver is a decision tree that answers: *where does this piece of knowledge belong?*
+
+```
+Is it about a specific person?          → people/
+Is it about a company or product?       → companies/
+Is it actively being built?             → projects/
+Is it an idea with no active work?      → ideas/
+Is it a mental model or framework?      → concepts/
+Is it a meeting record?                 → meetings/
+Doesn't fit?                            → inbox/
+```
+
+One page per entity. One home per entity. No duplicates.
+
+The resolver is what makes the brain *navigable by the agent* — because the schema is known, the assistant goes straight to `brain/people/garry-tan.md` rather than searching everything.
 
 ---
 
 ## Architecture
 
-![LLM Wiki Stack Architecture](docs/architecture.png)
-
 ```
-~/Vault/                          ← Obsidian vault (synced via obsidian-headless)
+~/Vault/
   WIKI-SCHEMA.md                 ← Governs how the LLM maintains the wiki
+  brain/                         ← Entity knowledge base (brain pattern)
+    RESOLVER.md
+    people/
+    companies/
+    projects/
+    ideas/
+    concepts/
+    meetings/
+    inbox/
+    archive/
   wiki/
     index.md                      ← Master catalog (updated on every ingest)
     log.md                        ← Append-only chronological record
@@ -77,7 +157,6 @@ They don't overlap. Together they give the assistant persistent, queryable memor
 
 ~/.config/systemd/user/
   obsidian-sync.service           ← Continuous vault sync daemon
-  obsidian-sync-mind.service      ← Continuous obsidian-mind sync daemon
 ```
 
 ---
@@ -105,10 +184,7 @@ ob login
 git clone https://github.com/joshuaboys/llm-wiki-stack.git
 cp -r llm-wiki-stack/vault-template ~/Vault
 
-# Create a remote vault (or connect to existing)
-ob sync-create-remote --name "Vault" --encryption e2ee
-
-# Set up sync (will prompt for E2E password)
+# Connect to existing Obsidian Sync vault (or create new)
 ob sync-setup --vault "Vault" --path ~/Vault --device-name "$(hostname)"
 
 # Initial sync
@@ -120,65 +196,43 @@ ob sync --path ~/Vault
 ```bash
 cp llm-wiki-stack/systemd/obsidian-sync.service ~/.config/systemd/user/
 
-# Edit the service file to point to your node binary and vault path
+# Edit ExecStart paths to match your node binary and vault path
 nano ~/.config/systemd/user/obsidian-sync.service
 
 systemctl --user daemon-reload
-systemctl --user enable obsidian-sync.service
-systemctl --user start obsidian-sync.service
+systemctl --user enable --now obsidian-sync.service
 systemctl --user is-active obsidian-sync.service
 ```
 
-### 4. Install obsidian-mind (optional but recommended)
+### 4. Choose your personal memory layer
 
+**Option A — obsidian-mind:**
 ```bash
 git clone https://github.com/breferrari/obsidian-mind.git ~/Vault-mind
-
-# Set up a second remote vault for personal memory
-ob sync-create-remote --name "Mind" --encryption e2ee
 ob sync-setup --vault "Mind" --path ~/Vault-mind --device-name "$(hostname)"
 
-# Copy the mind sync service
 cp llm-wiki-stack/systemd/obsidian-sync-mind.service ~/.config/systemd/user/
 systemctl --user daemon-reload
-systemctl --user enable obsidian-sync-mind.service
-systemctl --user start obsidian-sync-mind.service
+systemctl --user enable --now obsidian-sync-mind.service
 ```
 
-### 5. Install ByteRover (optional but recommended)
+**Option B — LLM Wiki v2 pattern:**
+Add a `brain/` directory to your vault using the brain pattern template in this repo:
+```bash
+cp -r llm-wiki-stack/vault-template/brain ~/Vault/brain
+```
+Then ask your assistant to seed it: *"Read my USER.md and create brain pages for the people and projects I mentioned."*
+
+### 5. Install ByteRover (optional)
 
 ```bash
 npm install -g byterover-cli
-
-# Connect your LLM provider
 brv providers connect openai --api-key YOUR_KEY
-# or: brv providers connect anthropic --api-key YOUR_KEY
-
-# Create a context directory per project
-mkdir -p ~/brv-context && cd ~/brv-context
-brv status
 ```
 
 ### 6. Configure your assistant
 
-Copy `schema/WIKI-SCHEMA.md` into your vault and adapt it to your domains and projects. You can rename it to match your assistant's name if you like. This is the most important step — it's what makes the LLM a disciplined wiki maintainer rather than a generic chatbot.
-
-Tell your assistant to read the schema at the start of every research session.
-
----
-
-## The Schema
-
-The schema (`schema/WIKI-SCHEMA.md`) is the configuration file that governs how the LLM maintains the wiki. It defines:
-
-- Directory structure conventions
-- Entity page format
-- Ingest workflow (what to update when a source is added)
-- Query workflow (file good answers back into the wiki)
-- Lint workflow (periodic health checks)
-- Project-specific update triggers
-
-**The key insight from Karpathy:** without a schema, the LLM is just a chatbot that happens to write files. With a schema, it becomes a disciplined wiki maintainer. Adapt the schema to your domains — the more specific it is, the better the compounding.
+Copy `schema/WIKI-SCHEMA.md` into your vault and adapt it to your domains. This is the most important step — it's what makes the assistant a disciplined wiki maintainer.
 
 ---
 
@@ -190,67 +244,40 @@ The schema (`schema/WIKI-SCHEMA.md`) is the configuration file that governs how 
 "Ingest this article: [URL or paste content]"
 ```
 
-The LLM will: read the source → discuss key takeaways → write a summary page → update entity pages → update project pages → update the index → append to the log.
+The LLM reads the source → writes a summary page → updates entity pages → updates the index → appends to the log. A single source typically touches 5–15 pages.
 
 ### Query the wiki
 
 ```
 "What do we know about [topic]?"
-"Summarise the competitive landscape for [product]"
-"What decisions have we made about [thing]?"
 ```
 
-Good answers get filed back as topic pages, not lost in chat history.
+The LLM reads the index → reads relevant pages → synthesises an answer → files good synthesis back as a `topics/` page.
 
-### Run a lint
+### Lint
 
 ```
 "Run a wiki lint"
 ```
 
-Checks for orphans, contradictions, stale content, and missing cross-references.
+Checks for orphan pages, contradictions, stale claims, missing cross-references.
 
 ---
 
-## Credits
+## Going Further
 
-- [Andrej Karpathy](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) — the LLM Wiki pattern
-- [obsidian-mind](https://github.com/breferrari/obsidian-mind) — personal memory vault template
-- [ByteRover](https://github.com/campfirein/byterover-cli) — agent-native memory architecture ([paper](https://arxiv.org/abs/2604.01599))
-- [obsidian-headless](https://github.com/obsidianmd/obsidian-headless) — headless sync daemon
-- [OpenClaw](https://openclaw.ai) — the always-on assistant layer
+- [LLM Wiki v2](https://gist.github.com/rohitg00/2067ab416f7bbe447c1977edaaa681e2) — confidence scoring, supersession, forgetting curves, typed relationships, hybrid search
+- [ByteRover paper](https://arxiv.org/abs/2604.01599) — hierarchical context trees with adaptive knowledge lifecycle
+- [obsidian-mind](https://github.com/breferrari/obsidian-mind) — session context and performance tracking for Claude Code
 
 ---
 
-## Troubleshooting
+## Acknowledgements
 
-### Sync daemon not running
-```bash
-systemctl --user status obsidian-sync.service
-journalctl --user -u obsidian-sync -f
-```
+Built on the shoulders of:
 
-### Service stops when I log out (headless server)
-Enable linger so user services survive logout:
-```bash
-loginctl enable-linger $USER
-```
-
-### Wrong node binary path in service
-Check what path the service is using:
-```bash
-cat ~/.config/systemd/user/obsidian-sync.service | grep ExecStart
-```
-Update to the correct path, then `systemctl --user daemon-reload && systemctl --user restart obsidian-sync`.
-
-### ob login expired
-```bash
-ob login
-systemctl --user restart obsidian-sync.service
-```
-
-### ByteRover not finding context
-ByteRover stores context per-directory. Always run `brv` commands from `~/brv-context` (or wherever you initialised it).
+- **[Andrej Karpathy](https://github.com/karpathy)** — the original [LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f). Stop re-deriving, start compiling.
+- **[Garry Tan](https://github.com/garrytan)** — [gbrain](https://github.com/garrytan/gbrain), the entity-first approach to agent memory that inspired the brain pattern and RESOLVER concept in this repo.
 
 ---
 

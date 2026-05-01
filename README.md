@@ -28,6 +28,7 @@ This is different. Your agent **builds and maintains a wiki** — structured, in
 | **Wiki IDE** | [Obsidian](https://obsidian.md) | Graph view, backlinks, browse on any device |
 | **Headless sync** | [obsidian-headless](https://github.com/obsidianmd/obsidian-headless) | Keeps vault synced on a server without a GUI |
 | **Schema** | This repo | What makes the wiki compound instead of just grow |
+| **Structured knowledge** | [ByteRover](https://github.com/campfirein/byterover-cli) | Hierarchical context tree for project/domain facts (optional add-on) |
 
 No database. No embeddings required to start. Just markdown files, a schema, and an agent that follows it.
 
@@ -196,6 +197,9 @@ bash <(curl -fsSL https://raw.githubusercontent.com/joshuaboys/llm-wiki-stack/ma
 
 # Already have a vault? Just add headless sync
 bash <(curl -fsSL https://raw.githubusercontent.com/joshuaboys/llm-wiki-stack/main/scripts/install-sync.sh)
+
+# Add ByteRover for structured project/domain knowledge
+bash <(curl -fsSL https://raw.githubusercontent.com/joshuaboys/llm-wiki-stack/main/scripts/install-byterover.sh)
 ```
 
 **Prerequisites:** Ubuntu/Debian, Node.js ≥ 20, Obsidian Sync subscription, OpenClaw running.
@@ -209,6 +213,33 @@ Copy `schema/WIKI-SCHEMA.md` into your vault as `WIKI-SCHEMA.md`. Tell your agen
 > "Read WIKI-SCHEMA.md before any wiki work. Brain-first lookup on every entity. Update pages immediately when you learn something new."
 
 That's it. Your agent will build the rest.
+
+---
+
+## ByteRover: Structured Knowledge (Optional)
+
+[ByteRover](https://github.com/campfirein/byterover-cli) adds a hierarchical context tree alongside the wiki — useful for structured project and domain facts that benefit from importance scoring and recency decay.
+
+**When to use ByteRover vs the wiki:**
+- **ByteRover** — structured project/domain facts: what a product does, benchmark numbers, ICP, decisions. Hierarchical, importance-weighted.
+- **Wiki layer** — cross-domain synthesis, competitor landscape, market signals, research that spans projects.
+
+They complement each other. ByteRover is fast and structured; the wiki compounds.
+
+```bash
+# Install
+npm install -g byterover-cli
+brv providers connect openai --api-key $OPENAI_API_KEY
+
+# Add knowledge
+brv curate "factual statement about a project or domain"
+
+# Query
+brv query "what do we know about X?"
+
+# Sync to cloud
+brv push
+```
 
 ---
 
@@ -237,6 +268,7 @@ Built on the shoulders of:
 - **[Andrej Karpathy](https://github.com/karpathy)** — the original [LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f). The core insight: stop re-deriving, start compiling.
 - **[Garry Tan](https://github.com/garrytan)** — [gbrain](https://github.com/garrytan/gbrain). The entity-first architecture, MECE directories, RESOLVER pattern, compiled truth + timeline, and the operational brain concept that extends Karpathy's research wiki into a full personal intelligence system.
 - **LLM Wiki v2** ([rohitg00](https://gist.github.com/rohitg00/2067ab416f7bbe447c1977edaaa681e2)) — production lessons: confidence scoring, supersession, forgetting curves, and typed relationships.
+- **[ByteRover](https://github.com/campfirein/byterover-cli)** — structured hierarchical knowledge layer with importance scoring and recency decay ([paper](https://arxiv.org/abs/2604.01599)).
 
 ---
 
